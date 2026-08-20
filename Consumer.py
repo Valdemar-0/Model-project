@@ -1,4 +1,4 @@
-rom types import SimpleNamespace
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -16,7 +16,8 @@ class ConsumerClass:
         s1 = the share of income spent on food
         w  = the share of the remaining (travel) budget spent on the bus
 
-    so that s2 = (1-s1)*w and s3 = (1-s1)*(1-w). Any (s1,w) in the unit square
+    so that s2 =
+      (1-s1)*w and s3 = (1-s1)*(1-w). Any (s1,w) in the unit square
     is a possible choice, and every possible choice is in the unit square, so
     the constraint set is exactly the box that L-BFGS-B takes as `bounds`.
 
@@ -132,9 +133,8 @@ class ConsumerClass:
         """
 
         par = self.par
-
-        pass
-
+        travel = self.ces(x2,x3,par.beta,par.sigma_A)
+        u=self.ces(x1,travel,par.alpha,par.sigma_B)
         return u
 
     ###############################
@@ -191,7 +191,8 @@ class ConsumerClass:
 
         """
 
-        pass
+        x1,x2,x3 = self.quantities(s1,w)
+        u = self.utility(x1,x2,x3)
 
         return u
 
