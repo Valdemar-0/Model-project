@@ -44,8 +44,8 @@ class ConsumerClass:
         par.beta = 0.50 # weight on the bus
 
         # b. substitution
-        par.sigma_A = 0.80 # between food and travel (upper nest)
-        par.sigma_B = 0.40 # between bus and train (lower nest)
+        par.sigma_A = 0.80 
+        par.sigma_B = 0.40 
 
         # c. prices and income
         par.p1 = 1.0 # price of food
@@ -134,10 +134,10 @@ class ConsumerClass:
 
         par = self.par
 
-        # a. rejse-sammensætning af bus og tog
+        # a. travel composition of bus and train
         travel = self.ces(x2,x3,par.beta,par.sigma_B)
 
-        # b. nytte af mad og rejse-sammensætning
+        # b. utility of food and travel composition
         u = self.ces(x1,travel,par.alpha,par.sigma_A)
 
         return u
@@ -232,19 +232,19 @@ class ConsumerClass:
         par = self.par
         opt = SimpleNamespace()
 
-        # a. de to gitre
+        # a. define the grid
         s1_vec = np.linspace(0,1,N)
         w_vec = np.linspace(0,1,N)
         s1_grid,w_grid = np.meshgrid(s1_vec,w_vec,indexing='ij')
 
-        # b. nytte i hvert gitterpunkt
+        # b. utility in each grid point
         u_grid = self.value_of_choice(s1_grid,w_grid)
 
-        # c. det bedste punkt
-        index_bedst = np.argmax(u_grid)
-        i,j = np.unravel_index(index_bedst,u_grid.shape)
+        # c. the best point
+        index_best = np.argmax(u_grid)
+        i,j = np.unravel_index(index_best,u_grid.shape)
 
-        # d. resultater
+        # d. results
         opt.s1 = s1_grid[i,j]
         opt.w = w_grid[i,j]
         opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
@@ -283,7 +283,7 @@ class ConsumerClass:
         if s0 is None: s0 = np.array([0.5,0.5])
         s0 = np.asarray(s0,dtype=float)
 
-        # b. registrér stien med en callback
+        # b. registrér the path with a callback
         path = [s0.copy()]
 
         # c. minimér
@@ -292,7 +292,7 @@ class ConsumerClass:
             callback=lambda sk: path.append(sk.copy()),
             **kwargs)
 
-        # d. resultater
+        # d. results
         opt.s1,opt.w = res.x
         opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
         opt.u = -res.fun
@@ -304,7 +304,7 @@ class ConsumerClass:
 
         return opt
 
-# --- 2.1.1: løs med grid search ---
+# 2.1.1 grid search
 
 # %%
 c = ConsumerClass()
@@ -330,7 +330,7 @@ ax2.legend()
 fig.tight_layout()
 plt.show()
 
-# --- 2.1.3: sammenlign N = 50, 100, 500, 1000 ---
+# --- 2.1.3: compare N = 50, 100, 500, 1000 ---
 # %%
 N_liste = [50, 100, 500, 1000]
 
@@ -352,7 +352,7 @@ print(f'L-BFGS-B:    s1 = {opt_lbfgsb.s1:.6f}, w = {opt_lbfgsb.w:.6f}, u = {opt_
 print(f'  funktionsevalueringer: {opt_lbfgsb.res.nfev}')
 print(f'  tid: {(t1-t0)*1000:.3f} ms')
 
-# b. grid search (N=200, til sammenligning)
+# b. grid search (N=200, til comparison)
 t0 = time.time()
 opt_grid = c.solve_grid(N=200, do_print=False)
 t1 = time.time()
@@ -364,22 +364,22 @@ print(f'  tid: {(t1-t0)*1000:.3f} ms')
 # %%
 opt_lbfgsb = c.solve()
 
-# a. sti oven på contour-plottet
+# a. path on top of the contour plot
 fig, ax = plt.subplots(figsize=(6,5))
 cont = ax.contourf(opt_grid.s1_grid, opt_grid.w_grid, opt_grid.u_grid, levels=30, cmap='viridis')
 fig.colorbar(cont, ax=ax, label=r'$u$')
 
-ax.plot(opt_lbfgsb.path[:,0], opt_lbfgsb.path[:,1], 'o-', color='red', markersize=4, label='Konvergenssti')
+ax.plot(opt_lbfgsb.path[:,0], opt_lbfgsb.path[:,1], 'o-', color='red', markersize=4, label='Convergence path')
 ax.scatter(opt_lbfgsb.path[0,0], opt_lbfgsb.path[0,1], color='white', edgecolor='black', s=80, zorder=5, label='Start')
-ax.scatter(opt_lbfgsb.s1, opt_lbfgsb.w, color='red', marker='*', s=150, zorder=5, label='Løsning')
+ax.scatter(opt_lbfgsb.s1, opt_lbfgsb.w, color='red', marker='*', s=150, zorder=5, label='Solution')
 
 ax.set_xlabel(r'$s_1$'); ax.set_ylabel(r'$w$')
-ax.set_title('L-BFGS-B konvergenssti')
+ax.set_title('L-BFGS-B convergence path')
 ax.legend()
 fig.tight_layout()
 plt.show()
 
-# b. afstand til slutpunktet, per iteration, på log-skala
+# b. distance to the endpoint, per iteration, on a log scale
 slutpunkt = opt_lbfgsb.path[-1]
 afstande = np.linalg.norm(opt_lbfgsb.path - slutpunkt, axis=1)
 
@@ -407,6 +407,7 @@ for name, s0 in start_points.items():
     print(f'{name:16s}: s1 = {opt_s.s1:.6f}, w = {opt_s.w:.6f}, u = {opt_s.u:.6f}, '
           f'iterations = {n_iter}, success = {opt_s.res.success}')
 
+#2.2.4 the tolerance parameters ftol and gtol
 # %%
 ftol_values = [1e-4, 1e-8, 1e-12, 1e-16]
 gtol_values = [1e-2, 1e-5, 1e-8, 1e-12]
@@ -430,4 +431,8 @@ for setting, value, s1, w, u, nfev in results:
 
 
 
+# %%
 
+# 2.2.5 Which settings to use
+#question 1: ftol = 1e-08 (or gtol = 1e-05). Both reach the highest utility (u = 3.401680) with the fewest evaluations (18) needed to get there.
+#question 2: past that point, tightening further (gtol = 1e-08, 1e-12) needs more evaluations (21) but gives the same utility — no improvement, just extra cost.
