@@ -133,9 +133,10 @@ class ConsumerClass:
         """
 
         par = self.par
-        travel = self.ces(x2,x3,par.beta,par.sigma_A)
-        u=self.ces(x1,travel,par.alpha,par.sigma_B)
+        travel = self.ces(x2,x3,par.beta,par.sigma_B)
+        u=self.ces(x1,travel,par.alpha,par.sigma_A)
         return u
+    
 
     ###############################
     # 2. the nested budget shares #
