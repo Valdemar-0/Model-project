@@ -141,6 +141,7 @@ class ConsumerClass:
         u = self.ces(x1,travel,par.alpha,par.sigma_A)
 
         return u
+    
 
     ###############################
     # 2. the nested budget shares #
