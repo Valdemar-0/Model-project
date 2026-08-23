@@ -1,6 +1,7 @@
-ffrom types import SimpleNamespace
+from types import SimpleNamespace
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from scipy import optimize
 
@@ -124,12 +125,12 @@ class GovernmentClass(ConsumerClass):
         par = self.par
 
         # a. what does the consumer buy, given the taxes?
-        #    .quantities() takes the nested shares (s1,w) from the solution
         if opt is None: opt = self.solve(do_print=False)
 
-        pass
+        x1,x2,x3 = self.quantities(opt.s1,opt.w)
 
         # b. the lump-sum tax, plus the product tax on each good
+        R = par.T + par.tau1*par.p1_pre*x1 + par.tau2*par.p2_pre*x2 + par.tau3*par.p3_pre*x3
 
         return R
 
@@ -147,7 +148,20 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        """ revenue and utility when the same tax rate is put on each good in goods """
+
+        # a. set the tax rate on the chosen goods, zero on the rest
+        tau1 = tau if 1 in goods else 0.0
+        tau2 = tau if 2 in goods else 0.0
+        tau3 = tau if 3 in goods else 0.0
+        self.set_taxes(tau1=tau1,tau2=tau2,tau3=tau3)
+
+        # b. solve the consumer problem under these taxes
+        opt = self.solve(do_print=False)
+
+        # c. revenue and utility
+        R = self.tax_revenue(opt)
+        u = opt.u
 
         return R,u
 
@@ -164,7 +178,17 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        """ the same, for a lump-sum tax of T """
+
+        # a. set the lump-sum tax, zero on the product taxes
+        self.set_taxes(T=T)
+
+        # b. solve the consumer problem under this tax
+        opt = self.solve(do_print=False)
+
+        # c. revenue and utility
+        R = self.tax_revenue(opt)
+        u = opt.u
 
         return R,u
 
@@ -193,7 +217,18 @@ class GovernmentClass(ConsumerClass):
 
         """
 
-        pass
+        # a. grid over the tax rate
+        tau_vec = np.linspace(0,tau_max,N)
+
+        # b. revenue at each grid point
+        R_vec = np.empty(N)
+        for i,tau in enumerate(tau_vec):
+            R_vec[i],_ = self.revenue_and_utility(tau,goods=goods)
+
+        # c. the best point
+        index_bedst = np.argmax(R_vec)
+        tau = tau_vec[index_bedst]
+        R = R_vec[index_bedst]
 
         return tau,R
 
@@ -207,18 +242,18 @@ class GovernmentClass(ConsumerClass):
         ValueError -- which is the correct answer, not a bug. Catch it and
         return np.nan.
 
-        Args:
-
-            R_target (float): the revenue requirement
-            goods (tuple): which goods to tax
-            bracket (tuple): interval of tax rates to search in
-
-        Returns:
-
-            (float): the tax rate, or np.nan if the target cannot be reached
-
         """
 
-        pass
+        # a. the function whose root we want: revenue minus the target
+        def f(tau):
+            R,_ = self.revenue_and_utility(tau,goods=goods)
+            return R - R_target
 
+        # b. find the root, or return nan if it cannot be reached
+        try:
+            result = optimize.root_scalar(f,bracket=bracket,method='brentq')
+            tau = result.root
+        except ValueError:
+            tau = np.nan
         return tau
+

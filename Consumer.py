@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from scipy import optimize
@@ -16,8 +17,7 @@ class ConsumerClass:
         s1 = the share of income spent on food
         w  = the share of the remaining (travel) budget spent on the bus
 
-    so that s2 =
-      (1-s1)*w and s3 = (1-s1)*(1-w). Any (s1,w) in the unit square
+    so that s2 = (1-s1)*w and s3 = (1-s1)*(1-w). Any (s1,w) in the unit square
     is a possible choice, and every possible choice is in the unit square, so
     the constraint set is exactly the box that L-BFGS-B takes as `bounds`.
 
@@ -133,8 +133,13 @@ class ConsumerClass:
         """
 
         par = self.par
+
+        # a. rejse-sammensætning af bus og tog
         travel = self.ces(x2,x3,par.beta,par.sigma_B)
-        u=self.ces(x1,travel,par.alpha,par.sigma_A)
+
+        # b. nytte af mad og rejse-sammensætning
+        u = self.ces(x1,travel,par.alpha,par.sigma_A)
+
         return u
     
 
@@ -180,6 +185,9 @@ class ConsumerClass:
 
     def value_of_choice(self,s1,w):
         """ utility of the bundle implied by the nested shares
+        x1,x2,x3 = self.quantities(s1,w)
+        u = self.utility(x1,x2,x3)
+        return u
 
         Args:
 
@@ -219,37 +227,35 @@ class ConsumerClass:
     #################
 
     def solve_grid(self,N=200,do_print=True):
-        """ solve by a 2-dimensional grid search over the nested shares
-
-        Every point of the unit square is a possible choice, so there is nothing
-        to mask out here -- a plain np.argmax will do.
-
-        Args:
-
-            N (int): number of grid points for each variable
-            do_print (bool): print the solution
-
-        Returns:
-
-            (SimpleNamespace): the grids, the utility values and the best point
-
-        """
+        """ solve by a 2-dimensional grid search over the nested shares """
 
         par = self.par
         opt = SimpleNamespace()
 
-        # a. the two grids
-        pass
+        # a. de to gitre
+        s1_vec = np.linspace(0,1,N)
+        w_vec = np.linspace(0,1,N)
+        s1_grid,w_grid = np.meshgrid(s1_vec,w_vec,indexing='ij')
 
-        # b. utility in every grid point
-        pass
+        # b. nytte i hvert gitterpunkt
+        u_grid = self.value_of_choice(s1_grid,w_grid)
 
-        # c. the best point
-        pass
+        # c. det bedste punkt
+        index_bedst = np.argmax(u_grid)
+        i,j = np.unravel_index(index_bedst,u_grid.shape)
 
-        # d. results
-        # opt.s1, opt.w, opt.s2, opt.s3, opt.u
-        # opt.s1_grid, opt.w_grid, opt.u_grid (needed for the figures)
+        # d. resultater
+        opt.s1 = s1_grid[i,j]
+        opt.w = w_grid[i,j]
+        opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
+        opt.u = u_grid[i,j]
+
+        opt.s1_grid = s1_grid
+        opt.w_grid = w_grid
+        opt.u_grid = u_grid
+
+        if do_print:
+           print(f's1 = {opt.s1:.4f}, w = {opt.w:.4f}, u = {opt.u:.4f}')
 
         return opt
 
@@ -277,13 +283,151 @@ class ConsumerClass:
         if s0 is None: s0 = np.array([0.5,0.5])
         s0 = np.asarray(s0,dtype=float)
 
-        # b. record the path with a callback
+        # b. registrér stien med en callback
         path = [s0.copy()]
 
-        # c. minimize
-        pass
+        # c. minimér
+        res = optimize.minimize(self.objective,s0,method='L-BFGS-B',
+            bounds=((0,1),(0,1)),
+            callback=lambda sk: path.append(sk.copy()),
+            **kwargs)
 
-        # d. results
-        # opt.s1, opt.w, opt.s2, opt.s3, opt.u, opt.path, opt.res
+        # d. resultater
+        opt.s1,opt.w = res.x
+        opt.s1,opt.s2,opt.s3 = self.shares(opt.s1,opt.w)
+        opt.u = -res.fun
+        opt.path = np.array(path)
+        opt.res = res
+
+        if do_print:
+            print(f's1 = {opt.s1:.4f}, w = {opt.w:.4f}, u = {opt.u:.4f}')
 
         return opt
+
+# --- 2.1.1: løs med grid search ---
+
+# %%
+c = ConsumerClass()
+opt = c.solve_grid(N=200)
+
+# %%
+fig = plt.figure(figsize=(12,5))
+
+ax1 = fig.add_subplot(1,2,1,projection='3d')
+ax1.plot_surface(opt.s1_grid, opt.w_grid, opt.u_grid, cmap='viridis')
+ax1.scatter([opt.s1], [opt.w], [opt.u], color='red', s=50, label='Løsning')
+ax1.set_xlabel(r'$s_1$'); ax1.set_ylabel(r'$w$'); ax1.set_zlabel(r'$u$')
+ax1.set_title('Nytte over de nestede andele (3D)')
+
+ax2 = fig.add_subplot(1,2,2)
+cont = ax2.contourf(opt.s1_grid, opt.w_grid, opt.u_grid, levels=30, cmap='viridis')
+ax2.scatter(opt.s1, opt.w, color='red', marker='*', s=150, label='Løsning')
+ax2.set_xlabel(r'$s_1$'); ax2.set_ylabel(r'$w$')
+ax2.set_title('Nytte over de nestede andele (contour)')
+fig.colorbar(cont, ax=ax2, label=r'$u$')
+ax2.legend()
+
+fig.tight_layout()
+plt.show()
+
+# --- 2.1.3: sammenlign N = 50, 100, 500, 1000 ---
+# %%
+N_liste = [50, 100, 500, 1000]
+
+for N in N_liste:
+    opt = c.solve_grid(N=N, do_print=False)
+    antal_evalueringer = N*N
+    print(f'N = {N:5d}:  s1 = {opt.s1:.6f}, w = {opt.w:.6f}, u = {opt.u:.6f}, evalueringer = {antal_evalueringer}')
+
+
+# %%
+import time
+
+# a. L-BFGS-B
+t0 = time.time()
+opt_lbfgsb = c.solve()
+t1 = time.time()
+
+print(f'L-BFGS-B:    s1 = {opt_lbfgsb.s1:.6f}, w = {opt_lbfgsb.w:.6f}, u = {opt_lbfgsb.u:.6f}')
+print(f'  funktionsevalueringer: {opt_lbfgsb.res.nfev}')
+print(f'  tid: {(t1-t0)*1000:.3f} ms')
+
+# b. grid search (N=200, til sammenligning)
+t0 = time.time()
+opt_grid = c.solve_grid(N=200, do_print=False)
+t1 = time.time()
+
+print(f'Grid search: s1 = {opt_grid.s1:.6f}, w = {opt_grid.w:.6f}, u = {opt_grid.u:.6f}')
+print(f'  funktionsevalueringer: {200*200}')
+print(f'  tid: {(t1-t0)*1000:.3f} ms')
+
+# %%
+opt_lbfgsb = c.solve()
+
+# a. sti oven på contour-plottet
+fig, ax = plt.subplots(figsize=(6,5))
+cont = ax.contourf(opt_grid.s1_grid, opt_grid.w_grid, opt_grid.u_grid, levels=30, cmap='viridis')
+fig.colorbar(cont, ax=ax, label=r'$u$')
+
+ax.plot(opt_lbfgsb.path[:,0], opt_lbfgsb.path[:,1], 'o-', color='red', markersize=4, label='Konvergenssti')
+ax.scatter(opt_lbfgsb.path[0,0], opt_lbfgsb.path[0,1], color='white', edgecolor='black', s=80, zorder=5, label='Start')
+ax.scatter(opt_lbfgsb.s1, opt_lbfgsb.w, color='red', marker='*', s=150, zorder=5, label='Løsning')
+
+ax.set_xlabel(r'$s_1$'); ax.set_ylabel(r'$w$')
+ax.set_title('L-BFGS-B konvergenssti')
+ax.legend()
+fig.tight_layout()
+plt.show()
+
+# b. afstand til slutpunktet, per iteration, på log-skala
+slutpunkt = opt_lbfgsb.path[-1]
+afstande = np.linalg.norm(opt_lbfgsb.path - slutpunkt, axis=1)
+
+fig2, ax2 = plt.subplots(figsize=(6,4))
+ax2.semilogy(afstande, 'o-')
+ax2.set_xlabel('Iteration')
+ax2.set_ylabel('Afstand til slutpunkt (log-skala)')
+ax2.set_title('Konvergenshastighed')
+fig2.tight_layout()
+plt.show()
+
+# %%
+start_points = {
+    'center':          [0.5, 0.5],
+    'corner (0,0)':    [0.0, 0.0],
+    'corner (0,1)':    [0.0, 1.0],
+    'corner (1,0)':    [1.0, 0.0],
+    'corner (1,1)':    [1.0, 1.0],
+    'extra':           [0.25, 0.75],
+}
+
+for name, s0 in start_points.items():
+    opt_s = c.solve(s0=s0, do_print=False)
+    n_iter = opt_s.res.nit
+    print(f'{name:16s}: s1 = {opt_s.s1:.6f}, w = {opt_s.w:.6f}, u = {opt_s.u:.6f}, '
+          f'iterations = {n_iter}, success = {opt_s.res.success}')
+
+# %%
+ftol_values = [1e-4, 1e-8, 1e-12, 1e-16]
+gtol_values = [1e-2, 1e-5, 1e-8, 1e-12]
+
+results = []
+
+# a. vary ftol (gtol at default)
+for ftol in ftol_values:
+    opt_s = c.solve(do_print=False, options={'ftol': ftol})
+    results.append(('ftol', ftol, opt_s.s1, opt_s.w, opt_s.u, opt_s.res.nfev))
+
+# b. vary gtol (ftol at default)
+for gtol in gtol_values:
+    opt_s = c.solve(do_print=False, options={'gtol': gtol})
+    results.append(('gtol', gtol, opt_s.s1, opt_s.w, opt_s.u, opt_s.res.nfev))
+
+print(f'{"setting":8s} {"value":10s} {"s1":>10s} {"w":>10s} {"u":>10s} {"nfev":>6s}')
+for setting, value, s1, w, u, nfev in results:
+    print(f'{setting:8s} {value:<10.0e} {s1:>10.6f} {w:>10.6f} {u:>10.6f} {nfev:>6d}')
+
+
+
+
+
